@@ -50,20 +50,58 @@ from .models import (
     CustomArticle, CyclicOne, CyclicTwo, DooHickey, Employee, EmptyModel,
     ExternalSubscriber, Fabric, FancyDoodad, FieldOverridePost,
     FilteredManager, FooAccount, FoodDelivery, FunkyTag, Gallery, Grommet,
-    Inquisition, Language, MainPrepopulated, ModelWithStringPrimaryKey,
-    OtherStory, Paper, Parent, ParentWithDependentChildren, Person, Persona,
-    Picture, Pizza, Plot, PlotDetails, PluggableSearchPerson, Podcast, Post,
-    PrePopulatedPost, Promo, Question, Recommendation, Recommender,
-    RelatedPrepopulated, Report, Restaurant, RowLevelChangePermissionModel,
-    SecretHideout, Section, ShortMessage, Simple, State, Story, Subscriber,
-    SuperSecretHideout, SuperVillain, Telegram, TitleTranslation, Topping,
-    UnchangeableObject, UndeletableObject, UnorderedObject, Villain, Vodcast,
-    Whatsit, Widget, Worker, WorkHour,
+    Inquisition, Language, Link, MainPrepopulated, ModelWithStringPrimaryKey,
+    OtherStory, Paper, Parent, ParentWithDependentChildren, ParentWithUUIDPK,
+    Person, Persona, Picture, Pizza, Plot, PlotDetails, PluggableSearchPerson,
+    Podcast, Post, PrePopulatedPost, Promo, Question, Recommendation,
+    Recommender, RelatedPrepopulated, RelatedWithUUIDPKModel, Report,
+    Restaurant, RowLevelChangePermissionModel, SecretHideout, Section,
+    ShortMessage, Simple, State, Story, Subscriber, SuperSecretHideout,
+    SuperVillain, Telegram, TitleTranslation, Topping, UnchangeableObject,
+    UndeletableObject, UnorderedObject, Villain, Vodcast, Whatsit, Widget,
+    Worker, WorkHour,
 )
 
 
 ERROR_MESSAGE = "Please enter the correct username and password \
 for a staff account. Note that both fields may be case-sensitive."
+
+
+class AdminFieldExtractionMixin(object):
+    """
+    Helper methods for extracting data from AdminForm.
+    """
+    def get_admin_form_fields(self, response):
+        """
+        Return a list of AdminFields for the AdminForm in the response.
+        """
+        admin_form = response.context['adminform']
+        fieldsets = list(admin_form)
+
+        field_lines = []
+        for fieldset in fieldsets:
+            field_lines += list(fieldset)
+
+        fields = []
+        for field_line in field_lines:
+            fields += list(field_line)
+
+        return fields
+
+    def get_admin_readonly_fields(self, response):
+        """
+        Return the readonly fields for the response's AdminForm.
+        """
+        return [f for f in self.get_admin_form_fields(response) if f.is_readonly]
+
+    def get_admin_readonly_field(self, response, field_name):
+        """
+        Return the readonly field for the given field_name.
+        """
+        admin_readonly_fields = self.get_admin_readonly_fields(response)
+        for field in admin_readonly_fields:
+            if field.field['name'] == field_name:
+                return field
 
 
 @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.SHA1PasswordHasher'],
@@ -346,16 +384,16 @@ class AdminViewBasicTest(AdminViewBasicTestCase):
         (column 6 is 'model_year_reverse' in ArticleAdmin)
         """
         response = self.client.get(reverse('admin:admin_views_article_changelist'), {'o': '6'})
-        self.assertContentBefore(response, '2009', '2008',
+        self.assertContentBefore(response, '2009,', '2008,',
             "Results of sorting on ModelAdmin method are out of order.")
-        self.assertContentBefore(response, '2008', '2000',
+        self.assertContentBefore(response, '2008,', '2000,',
             "Results of sorting on ModelAdmin method are out of order.")
         # Let's make sure the ordering is right and that we don't get a
         # FieldError when we change to descending order
         response = self.client.get(reverse('admin:admin_views_article_changelist'), {'o': '-6'})
-        self.assertContentBefore(response, '2000', '2008',
+        self.assertContentBefore(response, '2000,', '2008,',
             "Results of sorting on ModelAdmin method are out of order.")
-        self.assertContentBefore(response, '2008', '2009',
+        self.assertContentBefore(response, '2008,', '2009,',
             "Results of sorting on ModelAdmin method are out of order.")
 
     def test_change_list_sorting_multiple(self):
@@ -1303,7 +1341,8 @@ class AdminViewPermissionsTest(TestCase):
         )
         cls.s1 = Section.objects.create(name='Test section')
         cls.a1 = Article.objects.create(
-            content='<p>Middle content</p>', date=datetime.datetime(2008, 3, 18, 11, 54, 58), section=cls.s1
+            content='<p>Middle content</p>', date=datetime.datetime(2008, 3, 18, 11, 54, 58), section=cls.s1,
+            another_section=cls.s1,
         )
         cls.a2 = Article.objects.create(
             content='<p>Oldest content</p>', date=datetime.datetime(2000, 3, 18, 11, 54, 58), section=cls.s1
@@ -1724,6 +1763,35 @@ class AdminViewPermissionsTest(TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertContains(response, 'login-form')
             self.client.get(reverse('admin:logout'))
+
+    def test_change_view_save_as_new(self):
+        """
+        'Save as new' should raise PermissionDenied for users without the 'add'
+        permission.
+        """
+        change_dict_save_as_new = {
+            '_saveasnew': 'Save as new',
+            'title': 'Ikke fordømt',
+            'content': '<p>edited article</p>',
+            'date_0': '2008-03-18', 'date_1': '10:54:39',
+            'section': self.s1.pk,
+        }
+        article_change_url = reverse('admin:admin_views_article_change', args=(self.a1.pk,))
+
+        # Add user can perform "Save as new".
+        article_count = Article.objects.count()
+        self.client.force_login(self.adduser)
+        post = self.client.post(article_change_url, change_dict_save_as_new)
+        self.assertRedirects(post, self.index_url)
+        self.assertEqual(Article.objects.count(), article_count + 1)
+        self.client.logout()
+
+        # Change user cannot perform "Save as new" (no 'add' permission).
+        article_count = Article.objects.count()
+        self.client.force_login(self.changeuser)
+        post = self.client.post(article_change_url, change_dict_save_as_new)
+        self.assertEqual(post.status_code, 403)
+        self.assertEqual(Article.objects.count(), article_count)
 
     def test_delete_view(self):
         """Delete view should restrict access and actually delete items."""
@@ -3274,7 +3342,7 @@ class AdminActionsTest(TestCase):
         self.assertIsInstance(confirmation, TemplateResponse)
         self.assertContains(confirmation, "Are you sure you want to delete the selected subscribers?")
         self.assertContains(confirmation, "<h2>Summary</h2>")
-        self.assertContains(confirmation, "<li>Subscribers: 3</li>")
+        self.assertContains(confirmation, "<li>Subscribers: 2</li>")
         self.assertContains(confirmation, "<li>External subscribers: 1</li>")
         self.assertContains(confirmation, ACTION_CHECKBOX_NAME, count=2)
         self.client.post(reverse('admin:admin_views_subscriber_changelist'), delete_confirmation_data)
@@ -4689,6 +4757,65 @@ class SeleniumAdminViewsFirefoxTests(AdminSeleniumWebDriverTestCase):
         self.assertEqual(Pizza.objects.count(), 1)
         self.assertEqual(Topping.objects.count(), 2)
 
+    def test_list_editable_popups(self):
+        """
+        list_editable foreign keys have add/change popups.
+        """
+        s1 = Section.objects.create(name='Test section')
+        Article.objects.create(
+            content='<p>Middle content</p>',
+            date=datetime.datetime(2008, 3, 18, 11, 54, 58),
+            section=s1,
+        )
+        self.admin_login(username='super', password='secret', login_url=reverse('admin:index'))
+        self.selenium.get(self.live_server_url + reverse('admin:admin_views_article_changelist'))
+        # Change popup
+        self.selenium.find_element_by_id('change_id_form-0-section').click()
+        self.wait_for_popup()
+        self.selenium.switch_to.window(self.selenium.window_handles[-1])
+        self.wait_for_text('#content h1', 'Change section')
+        self.selenium.close()
+        self.selenium.switch_to.window(self.selenium.window_handles[0])
+
+        # Add popup
+        self.selenium.find_element_by_id('add_id_form-0-section').click()
+        self.wait_for_popup()
+        self.selenium.switch_to.window(self.selenium.window_handles[-1])
+        self.wait_for_text('#content h1', 'Add section')
+        self.selenium.close()
+        self.selenium.switch_to.window(self.selenium.window_handles[0])
+
+    def test_inline_uuid_pk_edit_with_popup(self):
+        from selenium.webdriver.support.ui import Select
+        parent = ParentWithUUIDPK.objects.create(title='test')
+        related_with_parent = RelatedWithUUIDPKModel.objects.create(parent=parent)
+        self.admin_login(username='super', password='secret', login_url=reverse('admin:index'))
+        change_url = reverse('admin:admin_views_relatedwithuuidpkmodel_change', args=(related_with_parent.id,))
+        self.selenium.get(self.live_server_url + change_url)
+        self.selenium.find_element_by_id('change_id_parent').click()
+        self.wait_for_popup()
+        self.selenium.switch_to.window(self.selenium.window_handles[-1])
+        self.selenium.find_element_by_xpath('//input[@value="Save"]').click()
+        self.selenium.switch_to.window(self.selenium.window_handles[0])
+        select = Select(self.selenium.find_element_by_id('id_parent'))
+        self.assertEqual(select.first_selected_option.text, str(parent.id))
+        self.assertEqual(select.first_selected_option.get_attribute('value'), str(parent.id))
+
+    def test_inline_uuid_pk_add_with_popup(self):
+        from selenium.webdriver.support.ui import Select
+        self.admin_login(username='super', password='secret', login_url=reverse('admin:index'))
+        self.selenium.get(self.live_server_url + reverse('admin:admin_views_relatedwithuuidpkmodel_add'))
+        self.selenium.find_element_by_id('add_id_parent').click()
+        self.wait_for_popup()
+        self.selenium.switch_to.window(self.selenium.window_handles[-1])
+        self.selenium.find_element_by_id('id_title').send_keys('test')
+        self.selenium.find_element_by_xpath('//input[@value="Save"]').click()
+        self.selenium.switch_to.window(self.selenium.window_handles[0])
+        select = Select(self.selenium.find_element_by_id('id_parent'))
+        uuid_id = str(ParentWithUUIDPK.objects.first().id)
+        self.assertEqual(select.first_selected_option.text, uuid_id)
+        self.assertEqual(select.first_selected_option.get_attribute('value'), uuid_id)
+
 
 class SeleniumAdminViewsChromeTests(SeleniumAdminViewsFirefoxTests):
     webdriver_class = 'selenium.webdriver.chrome.webdriver.WebDriver'
@@ -4700,7 +4827,7 @@ class SeleniumAdminViewsIETests(SeleniumAdminViewsFirefoxTests):
 
 @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.SHA1PasswordHasher'],
     ROOT_URLCONF="admin_views.urls")
-class ReadonlyTest(TestCase):
+class ReadonlyTest(AdminFieldExtractionMixin, TestCase):
 
     @classmethod
     def setUpTestData(cls):
@@ -4765,6 +4892,22 @@ class ReadonlyTest(TestCase):
         response = self.client.get(reverse('admin:admin_views_post_change', args=(p.pk,)))
         self.assertContains(response, "%d amount of cool" % p.pk)
 
+    @ignore_warnings(category=RemovedInDjango20Warning)  # for allow_tags deprecation
+    def test_readonly_text_field(self):
+        p = Post.objects.create(
+            title="Readonly test", content="test",
+            readonly_content='test\r\n\r\ntest\r\n\r\ntest\r\n\r\ntest',
+        )
+        Link.objects.create(
+            url="http://www.djangoproject.com", post=p,
+            readonly_link_content="test\r\nlink",
+        )
+        response = self.client.get(reverse('admin:admin_views_post_change', args=(p.pk,)))
+        # Checking readonly field.
+        self.assertContains(response, 'test<br /><br />test<br /><br />test<br /><br />test')
+        # Checking readonly field in inline.
+        self.assertContains(response, 'test<br />link')
+
     def test_readonly_post(self):
         data = {
             "title": "Django Got Readonly Fields",
@@ -4805,7 +4948,7 @@ class ReadonlyTest(TestCase):
         self.assertContains(response, '<p>No opinion</p>', html=True)
         self.assertNotContains(response, '<p>(None)</p>')
 
-    def test_readonly_backwards_ref(self):
+    def test_readonly_manytomany_backwards_ref(self):
         """
         Regression test for #16433 - backwards references for related objects
         broke if the related field is read-only due to the help_text attribute
@@ -4815,6 +4958,26 @@ class ReadonlyTest(TestCase):
         pizza.toppings.add(topping)
         response = self.client.get(reverse('admin:admin_views_topping_add'))
         self.assertEqual(response.status_code, 200)
+
+    def test_readonly_onetoone_backwards_ref(self):
+        """
+        Can reference a reverse OneToOneField in ModelAdmin.readonly_fields.
+        """
+        v1 = Villain.objects.create(name='Adam')
+        pl = Plot.objects.create(name='Test Plot', team_leader=v1, contact=v1)
+        pd = PlotDetails.objects.create(details='Brand New Plot', plot=pl)
+
+        response = self.client.get(reverse('admin:admin_views_plotproxy_change', args=(pl.pk,)))
+        field = self.get_admin_readonly_field(response, 'plotdetails')
+        self.assertEqual(field.contents(), 'Brand New Plot')
+
+        # The reverse relation also works if the OneToOneField is null.
+        pd.plot = None
+        pd.save()
+
+        response = self.client.get(reverse('admin:admin_views_plotproxy_change', args=(pl.pk,)))
+        field = self.get_admin_readonly_field(response, 'plotdetails')
+        self.assertEqual(field.contents(), '-')  # default empty value
 
     @ignore_warnings(category=RemovedInDjango20Warning)  # for allow_tags deprecation
     def test_readonly_field_overrides(self):
@@ -5623,7 +5786,7 @@ class AdminCustomSaveRelatedTests(TestCase):
 
 @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.SHA1PasswordHasher'],
     ROOT_URLCONF="admin_views.urls")
-class AdminViewLogoutTest(TestCase):
+class AdminViewLogoutTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
@@ -5634,16 +5797,16 @@ class AdminViewLogoutTest(TestCase):
             is_staff=True, is_active=True, date_joined=datetime.datetime(2007, 5, 30, 13, 20, 10)
         )
 
-    def setUp(self):
+    def test_logout(self):
         self.client.force_login(self.superuser)
-
-    def test_client_logout_url_can_be_used_to_login(self):
         response = self.client.get(reverse('admin:logout'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'registration/logged_out.html')
         self.assertEqual(response.request['PATH_INFO'], reverse('admin:logout'))
+        self.assertFalse(response.context['has_permission'])
+        self.assertNotContains(response, 'user-tools')  # user-tools div shouldn't visible.
 
-        # we are now logged out
+    def test_client_logout_url_can_be_used_to_login(self):
         response = self.client.get(reverse('admin:logout'))
         self.assertEqual(response.status_code, 302)  # we should be redirected to the login page.
 

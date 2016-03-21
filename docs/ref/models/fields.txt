@@ -490,6 +490,12 @@ optional arguments:
     for "last-modified" timestamps. Note that the current date is *always*
     used; it's not just a default value that you can override.
 
+    The field is only automatically updated when calling :meth:`Model.save()
+    <django.db.models.Model.save>`. The field isn't updated when making updates
+    to other fields in other ways such as :meth:`QuerySet.update()
+    <django.db.models.query.QuerySet.update>`, though you can specify a custom
+    value for the field in an update like that.
+
 .. attribute:: DateField.auto_now_add
 
     Automatically set the field to now when the object is first created. Useful
@@ -745,8 +751,8 @@ equivalent to XSS or CSRF attacks.
 columns with a default max length of 100 characters. As with other fields, you
 can change the maximum length using the :attr:`~CharField.max_length` argument.
 
-FileField and FieldFile
-~~~~~~~~~~~~~~~~~~~~~~~
+``FileField`` and ``FieldFile``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: django.db.models.fields.files
 
@@ -795,7 +801,7 @@ Python file object like this::
 
     from django.core.files import File
     # Open an existing file using Python's built-in open()
-    f = open('/tmp/hello.world')
+    f = open('/path/to/hello.world')
     myfile = File(f)
 
 Or you can construct one from a Python string like this::
@@ -1155,6 +1161,35 @@ you can use the name of the model, rather than the model object itself::
         # ...
         pass
 
+Relationships defined this way on :ref:`abstract models
+<abstract-base-classes>` are resolved when the model is subclassed as a
+concrete model and are not relative to the abstract model's ``app_label``:
+
+.. snippet::
+    :filename: products/models.py
+
+    from django.db import models
+
+    class AbstractCar(models.Model):
+        manufacturer = models.ForeignKey('Manufacturer', on_delete=models.CASCADE)
+
+        class Meta:
+            abstract = True
+
+.. snippet::
+    :filename: production/models.py
+
+    from django.db import models
+    from products.models import AbstractCar
+
+    class Manufacturer(models.Model):
+        pass
+
+    class Car(AbstractCar):
+        pass
+
+    # Car.manufacturer will point to `production.Manufacturer` here.
+
 To refer to models defined in another application, you can explicitly specify
 a model with the full application label. For example, if the ``Manufacturer``
 model above is defined in another application called ``production``, you'd
@@ -1387,8 +1422,6 @@ The possible values for :attr:`~ForeignKey.on_delete` are found in
 
     If in doubt, leave it to its default of ``True``.
 
-.. _ref-manytomany:
-
 ``ManyToManyField``
 -------------------
 
@@ -1591,8 +1624,6 @@ that control how the relationship functions.
 
 :attr:`~Field.null` has no effect since there is no way to require a
 relationship at the database level.
-
-.. _ref-onetoone:
 
 ``OneToOneField``
 -----------------

@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 import datetime
 import os
 import tempfile
+import uuid
 
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import (
@@ -40,6 +41,7 @@ class Article(models.Model):
     content = models.TextField()
     date = models.DateTimeField()
     section = models.ForeignKey(Section, models.CASCADE, null=True, blank=True)
+    another_section = models.ForeignKey(Section, models.CASCADE, null=True, blank=True, related_name='+')
     sub_section = models.ForeignKey(Section, models.SET_NULL, null=True, blank=True, related_name='+')
 
     def __str__(self):
@@ -450,6 +452,7 @@ class Link(models.Model):
     posted = models.DateField(default=link_posted_default)
     url = models.URLField()
     post = models.ForeignKey("Post", models.CASCADE)
+    readonly_link_content = models.TextField()
 
 
 class PrePopulatedPost(models.Model):
@@ -467,6 +470,7 @@ class PrePopulatedSubPost(models.Model):
 class Post(models.Model):
     title = models.CharField(max_length=100, help_text="Some help text for the title (with unicode ŠĐĆŽćžšđ)")
     content = models.TextField(help_text="Some help text for the content (with unicode ŠĐĆŽćžšđ)")
+    readonly_content = models.TextField()
     posted = models.DateField(
         default=datetime.date.today,
         help_text="Some help text for the date (with unicode ŠĐĆŽćžšđ)"
@@ -530,10 +534,15 @@ class Plot(models.Model):
 @python_2_unicode_compatible
 class PlotDetails(models.Model):
     details = models.CharField(max_length=100)
-    plot = models.OneToOneField(Plot, models.CASCADE)
+    plot = models.OneToOneField(Plot, models.CASCADE, null=True, blank=True)
 
     def __str__(self):
         return self.details
+
+
+class PlotProxy(Plot):
+    class Meta:
+        proxy = True
 
 
 @python_2_unicode_compatible
@@ -949,3 +958,15 @@ class ReferencedByGenRel(models.Model):
 
 class GenRelReference(models.Model):
     references = GenericRelation(ReferencedByGenRel)
+
+
+class ParentWithUUIDPK(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=100)
+
+    def __str__(self):
+        return str(self.id)
+
+
+class RelatedWithUUIDPKModel(models.Model):
+    parent = models.ForeignKey(ParentWithUUIDPK, on_delete=models.CASCADE)

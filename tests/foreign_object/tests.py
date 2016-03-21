@@ -395,6 +395,18 @@ class MultiColumnFKTests(TestCase):
         objs = [Person(name="abcd_%s" % i, person_country=self.usa) for i in range(0, 5)]
         Person.objects.bulk_create(objs, 10)
 
+    def test_isnull_lookup(self):
+        Membership.objects.create(membership_country=self.usa, person=self.bob, group_id=None)
+        Membership.objects.create(membership_country=self.usa, person=self.bob, group=self.cia)
+        self.assertQuerysetEqual(
+            Membership.objects.filter(group__isnull=True),
+            ['<Membership: Bob is a member of NULL>']
+        )
+        self.assertQuerysetEqual(
+            Membership.objects.filter(group__isnull=False),
+            ['<Membership: Bob is a member of CIA>']
+        )
+
 
 class TestModelCheckTests(SimpleTestCase):
 
@@ -455,3 +467,16 @@ class TestModelCheckTests(SimpleTestCase):
                 apps = test_apps
 
         self.assertEqual(Child._meta.get_field('parent').check(from_model=Child), [])
+
+
+class TestExtraJoinFilterQ(TestCase):
+    @translation.override('fi')
+    def test_extra_join_filter_q(self):
+        a = Article.objects.create(pub_date=datetime.datetime.today())
+        ArticleTranslation.objects.create(article=a, lang='fi', title='title', body='body')
+        qs = Article.objects.all()
+        with self.assertNumQueries(2):
+            self.assertEqual(qs[0].active_translation_q.title, 'title')
+        qs = qs.select_related('active_translation_q')
+        with self.assertNumQueries(1):
+            self.assertEqual(qs[0].active_translation_q.title, 'title')

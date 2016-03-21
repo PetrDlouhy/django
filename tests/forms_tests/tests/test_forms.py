@@ -661,6 +661,20 @@ class FormsTestCase(SimpleTestCase):
         f = BeatleForm(auto_id=False)
         self.assertHTMLEqual('\n'.join(str(bf) for bf in f['name']), '<input type="text" name="name" />')
 
+    def test_boundfield_slice(self):
+        class BeatleForm(Form):
+            name = ChoiceField(
+                choices=[('john', 'John'), ('paul', 'Paul'), ('george', 'George'), ('ringo', 'Ringo')],
+                widget=RadioSelect,
+            )
+
+        f = BeatleForm()
+        bf = f['name']
+        self.assertEqual(
+            [str(item) for item in bf[1:]],
+            [str(bf[1]), str(bf[2]), str(bf[3])],
+        )
+
     def test_forms_with_multiple_choice(self):
         # MultipleChoiceField is a special case, as its data is required to be a list:
         class SongForm(Form):
@@ -718,6 +732,14 @@ class FormsTestCase(SimpleTestCase):
                 {'birthday': datetime.date(1974, 8, 16), 'name': 'John Doe'}
             )
 
+        # Initial data remains present on invalid forms.
+        data = {}
+        f1 = PersonForm(data, initial={'birthday': datetime.date(1974, 8, 16)})
+        f2 = PersonFormFieldInitial(data)
+        for form in (f1, f2):
+            self.assertFalse(form.is_valid())
+            self.assertEqual(form['birthday'].value(), datetime.date(1974, 8, 16))
+
     def test_hidden_data(self):
         class SongForm(Form):
             name = CharField()
@@ -749,7 +771,7 @@ class FormsTestCase(SimpleTestCase):
             '<input type="hidden" name="when_1" value="01:01" id="id_when_1" />'
         )
 
-    def test_mulitple_choice_checkbox(self):
+    def test_multiple_choice_checkbox(self):
         # MultipleChoiceField can also be used with the CheckboxSelectMultiple widget.
         class SongForm(Form):
             name = CharField()

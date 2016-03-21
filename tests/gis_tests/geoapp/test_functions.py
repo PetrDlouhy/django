@@ -94,7 +94,7 @@ class GISFunctionsTests(TestCase):
 
     @skipUnlessDBFeature("has_AsGML_function")
     def test_asgml(self):
-        # Should throw a TypeError when tyring to obtain GML from a
+        # Should throw a TypeError when trying to obtain GML from a
         # non-geometry field.
         qs = City.objects.all()
         with self.assertRaises(TypeError):
@@ -434,7 +434,7 @@ class GISFunctionsTests(TestCase):
             union=functions.Union('mpoly', geom),
         )
 
-        # For some reason SpatiaLite does something screwey with the Texas geometry here.
+        # For some reason SpatiaLite does something screwy with the Texas geometry here.
         # Also, it doesn't like the null intersection.
         if spatialite:
             qs = qs.exclude(name='Texas')

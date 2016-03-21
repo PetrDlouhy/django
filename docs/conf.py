@@ -6,7 +6,7 @@
 # This file is execfile()d with the current directory set to its containing dir.
 #
 # The contents of this file are pickled, so don't put values in the namespace
-# that aren't pickleable (module imports are okay, they're removed automatically).
+# that aren't picklable (module imports are okay, they're removed automatically).
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
@@ -15,6 +15,15 @@ from __future__ import unicode_literals
 
 import sys
 from os.path import abspath, dirname, join
+
+# Workaround for sphinx-build recursion limit overflow:
+# pickle.dump(doctree, f, pickle.HIGHEST_PROTOCOL)
+#  RuntimeError: maximum recursion depth exceeded while pickling an object
+#
+# Python's default allowed recursion depth is 1000 but this isn't enough for
+# building docs/ref/settings.txt sometimes.
+# https://groups.google.com/d/topic/sphinx-dev/MtRf64eGtv4/discussion
+sys.setrecursionlimit(2000)
 
 # Make sure we get the version of this copy of Django
 sys.path.insert(1, dirname(dirname(abspath(__file__))))
@@ -27,7 +36,7 @@ sys.path.append(abspath(join(dirname(__file__), "_ext")))
 # -- General configuration -----------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
-needs_sphinx = '1.0'
+needs_sphinx = '1.3'  # Actually 1.3.4, but micro versions aren't supported here.
 
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.

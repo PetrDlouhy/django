@@ -919,6 +919,9 @@ class FieldsTests(SimpleTestCase):
         # with here)
         self.assertTrue(f.has_changed('resume.txt', {'filename': 'resume.txt', 'content': 'My resume'}))
 
+    def test_file_picklable(self):
+        self.assertIsInstance(pickle.loads(pickle.dumps(FileField())), FileField)
+
     # ImageField ##################################################################
 
     @skipIf(Image is None, "Pillow is required to test ImageField")
@@ -1256,6 +1259,14 @@ class FieldsTests(SimpleTestCase):
         self.assertFalse(f.has_changed(None, ''))
         self.assertFalse(f.has_changed(1, '1'))
         self.assertFalse(f.has_changed('1', '1'))
+
+        f = TypedChoiceField(
+            choices=[('', '---------'), ('a', "a"), ('b', "b")], coerce=six.text_type,
+            required=False, initial=None, empty_value=None,
+        )
+        self.assertFalse(f.has_changed(None, ''))
+        self.assertTrue(f.has_changed('', 'a'))
+        self.assertFalse(f.has_changed('a', 'a'))
 
     def test_typedchoicefield_special_coerce(self):
         """

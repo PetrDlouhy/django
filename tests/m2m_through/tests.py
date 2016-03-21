@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from datetime import datetime
 from operator import attrgetter
 
-from django.test import TestCase
+from django.test import TestCase, skipUnlessDBFeature
 
 from .models import (
     CustomMembership, Employee, Event, Friendship, Group, Ingredient,
@@ -197,6 +197,21 @@ class M2mThroughTests(TestCase):
             attrgetter("name")
         )
 
+    @skipUnlessDBFeature('supports_microsecond_precision')
+    def test_order_by_relational_field_through_model(self):
+        CustomMembership.objects.create(person=self.jim, group=self.rock)
+        CustomMembership.objects.create(person=self.bob, group=self.rock)
+        CustomMembership.objects.create(person=self.jane, group=self.roll)
+        CustomMembership.objects.create(person=self.jim, group=self.roll)
+        self.assertQuerysetEqual(
+            self.rock.custom_members.order_by('custom_person_related_name'),
+            [self.jim, self.bob], lambda x: x
+        )
+        self.assertQuerysetEqual(
+            self.roll.custom_members.order_by('custom_person_related_name'),
+            [self.jane, self.jim], lambda x: x
+        )
+
     def test_query_first_model_by_intermediate_model_attribute(self):
         Membership.objects.create(
             person=self.jane, group=self.roll,
@@ -346,7 +361,7 @@ class M2mThroughReferentialTests(TestCase):
             []
         )
 
-    def test_self_referential_non_symmentrical_first_side(self):
+    def test_self_referential_non_symmetrical_first_side(self):
         tony = PersonSelfRefM2M.objects.create(name="Tony")
         chris = PersonSelfRefM2M.objects.create(name="Chris")
         Friendship.objects.create(
@@ -359,7 +374,7 @@ class M2mThroughReferentialTests(TestCase):
             attrgetter("name")
         )
 
-    def test_self_referential_non_symmentrical_second_side(self):
+    def test_self_referential_non_symmetrical_second_side(self):
         tony = PersonSelfRefM2M.objects.create(name="Tony")
         chris = PersonSelfRefM2M.objects.create(name="Chris")
         Friendship.objects.create(
@@ -371,7 +386,7 @@ class M2mThroughReferentialTests(TestCase):
             []
         )
 
-    def test_self_referential_non_symmentrical_clear_first_side(self):
+    def test_self_referential_non_symmetrical_clear_first_side(self):
         tony = PersonSelfRefM2M.objects.create(name="Tony")
         chris = PersonSelfRefM2M.objects.create(name="Chris")
         Friendship.objects.create(
@@ -392,7 +407,7 @@ class M2mThroughReferentialTests(TestCase):
             attrgetter("name")
         )
 
-    def test_self_referential_symmentrical(self):
+    def test_self_referential_symmetrical(self):
         tony = PersonSelfRefM2M.objects.create(name="Tony")
         chris = PersonSelfRefM2M.objects.create(name="Chris")
         Friendship.objects.create(

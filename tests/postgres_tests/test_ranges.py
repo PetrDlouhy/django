@@ -199,7 +199,7 @@ class TestQuerying(TestCase):
 
 
 @skipUnlessPG92
-class TestQueringWithRanges(TestCase):
+class TestQueryingWithRanges(TestCase):
     def test_date_range(self):
         objs = [
             RangeLookupsModel.objects.create(date='2015-01-01'),
@@ -322,6 +322,17 @@ class TestSerialization(TestCase):
         self.assertEqual(instance.ints, NumericRange(0, 10))
         self.assertEqual(instance.floats, NumericRange(empty=True))
         self.assertEqual(instance.bigints, None)
+
+    def test_serialize_range_with_null(self):
+        instance = RangesModel(ints=NumericRange(None, 10))
+        data = serializers.serialize('json', [instance])
+        new_instance = list(serializers.deserialize('json', data))[0].object
+        self.assertEqual(new_instance.ints, NumericRange(None, 10))
+
+        instance = RangesModel(ints=NumericRange(10, None))
+        data = serializers.serialize('json', [instance])
+        new_instance = list(serializers.deserialize('json', data))[0].object
+        self.assertEqual(new_instance.ints, NumericRange(10, None))
 
 
 class TestValidators(PostgreSQLTestCase):

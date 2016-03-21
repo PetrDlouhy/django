@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from django import forms, test
 from django.apps import apps
+from django.apps.registry import Apps
 from django.core import checks, validators
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, models, transaction
@@ -247,6 +248,33 @@ class ForeignKeyTests(test.TestCase):
             "Pending lookup added for a foreign key on an abstract model"
         )
 
+    def test_abstract_model_app_relative_foreign_key(self):
+        test_apps = Apps(['model_fields', 'model_fields.tests'])
+
+        class AbstractReferent(models.Model):
+            reference = models.ForeignKey('Refered', on_delete=models.CASCADE)
+
+            class Meta:
+                apps = test_apps
+                app_label = 'model_fields'
+                abstract = True
+
+        def assert_app_model_resolved(label):
+            class Refered(models.Model):
+                class Meta:
+                    apps = test_apps
+                    app_label = label
+
+            class ConcreteReferent(AbstractReferent):
+                class Meta:
+                    apps = test_apps
+                    app_label = label
+
+            self.assertEqual(ConcreteReferent._meta.get_field('reference').related_model, Refered)
+
+        assert_app_model_resolved('model_fields')
+        assert_app_model_resolved('tests')
+
 
 class ManyToManyFieldTests(test.SimpleTestCase):
     def test_abstract_model_pending_operations(self):
@@ -268,6 +296,42 @@ class ManyToManyFieldTests(test.SimpleTestCase):
             list(apps._pending_operations.items()),
             "Pending lookup added for a many-to-many field on an abstract model"
         )
+
+    def test_abstract_model_app_relative_foreign_key(self):
+        test_apps = Apps(['model_fields', 'model_fields.tests'])
+
+        class AbstractReferent(models.Model):
+            reference = models.ManyToManyField('Refered', through='Through')
+
+            class Meta:
+                apps = test_apps
+                app_label = 'model_fields'
+                abstract = True
+
+        def assert_app_model_resolved(label):
+            class Refered(models.Model):
+                class Meta:
+                    apps = test_apps
+                    app_label = label
+
+            class Through(models.Model):
+                refered = models.ForeignKey('Refered', on_delete=models.CASCADE)
+                referent = models.ForeignKey('ConcreteReferent', on_delete=models.CASCADE)
+
+                class Meta:
+                    apps = test_apps
+                    app_label = label
+
+            class ConcreteReferent(AbstractReferent):
+                class Meta:
+                    apps = test_apps
+                    app_label = label
+
+            self.assertEqual(ConcreteReferent._meta.get_field('reference').related_model, Refered)
+            self.assertEqual(ConcreteReferent.reference.through, Through)
+
+        assert_app_model_resolved('model_fields')
+        assert_app_model_resolved('tests')
 
 
 class TextFieldTests(test.TestCase):

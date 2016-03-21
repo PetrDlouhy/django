@@ -111,7 +111,8 @@ Each field in your model should be an instance of the appropriate
 :class:`~django.db.models.Field` class. Django uses the field class types to
 determine a few things:
 
-* The database column type (e.g. ``INTEGER``, ``VARCHAR``).
+* The column type, which tells the database what kind of data to store (e.g.
+  ``INTEGER``, ``VARCHAR``, ``TEXT``).
 
 * The default HTML :doc:`widget </ref/forms/widgets>` to use when rendering a form
   field (e.g. ``<input type="text">``, ``<select>``).
@@ -169,10 +170,10 @@ ones:
         )
 
     The first element in each tuple is the value that will be stored in the
-    database, the second element will be displayed by the default form widget
-    or in a ModelChoiceField. Given an instance of a model object, the
-    display value for a choices field can be accessed using the
-    ``get_FOO_display`` method. For example::
+    database. The second element will be displayed by the default form widget
+    or in a :class:`~django.forms.ModelChoiceField`. Given a model instance,
+    the display value for a choices field can be accessed using the
+    ``get_FOO_display()`` method. For example::
 
         from django.db import models
 
@@ -387,8 +388,7 @@ For example, if a ``Pizza`` has multiple ``Topping`` objects -- that is, a
 As with :class:`~django.db.models.ForeignKey`, you can also create
 :ref:`recursive relationships <recursive-relationships>` (an object with a
 many-to-many relationship to itself) and :ref:`relationships to models not yet
-defined <lazy-relationships>`; see :ref:`the model field reference
-<ref-manytomany>` for details.
+defined <lazy-relationships>`.
 
 It's suggested, but not required, that the name of a
 :class:`~django.db.models.ManyToManyField` (``toppings`` in the example above)
@@ -599,20 +599,17 @@ restaurant "is a" place; in fact, to handle this you'd typically use
 :ref:`inheritance <model-inheritance>`, which involves an implicit
 one-to-one relation).
 
-As with :class:`~django.db.models.ForeignKey`, a
-:ref:`recursive relationship <recursive-relationships>`
-can be defined and
-:ref:`references to as-yet undefined models <lazy-relationships>`
-can be made; see :ref:`the model field reference <ref-onetoone>` for details.
+As with :class:`~django.db.models.ForeignKey`, a :ref:`recursive relationship
+<recursive-relationships>` can be defined and :ref:`references to as-yet
+undefined models <lazy-relationships>` can be made.
 
 .. seealso::
 
     See the :doc:`One-to-one relationship model example
     </topics/db/examples/one_to_one>` for a full example.
 
-:class:`~django.db.models.OneToOneField` fields also accept one specific,
-optional ``parent_link`` argument described in the :ref:`model field
-reference <ref-onetoone>`.
+:class:`~django.db.models.OneToOneField` fields also accept an optional
+:attr:`~django.db.models.OneToOneField.parent_link` argument.
 
 :class:`~django.db.models.OneToOneField` classes used to automatically become
 the primary key on a model. This is no longer true (although you can manually
@@ -675,8 +672,8 @@ provided in :doc:`/howto/custom-model-fields`.
 
 .. _meta-options:
 
-Meta options
-============
+``Meta`` options
+================
 
 Give your model metadata by using an inner ``class Meta``, like so::
 
@@ -917,7 +914,7 @@ model, since it is an abstract base class. It does not generate a database
 table or have a manager, and cannot be instantiated or saved directly.
 
 For many uses, this type of model inheritance will be exactly what you want.
-It provides a way to factor out common information at the Python level, whilst
+It provides a way to factor out common information at the Python level, while
 still only creating one database table per child model at the database level.
 
 ``Meta`` inheritance
@@ -1000,7 +997,7 @@ Along with another app ``rare/models.py``::
         pass
 
 The reverse name of the ``common.ChildA.m2m`` field will be
-``common_childa_related``, whilst the reverse name of the
+``common_childa_related``, while the reverse name of the
 ``common.ChildB.m2m`` field will be ``common_childb_related``, and finally the
 reverse name of the ``rare.ChildB.m2m`` field will be ``rare_childb_related``.
 It is up to you how you use the ``'%(class)s'`` and ``'%(app_label)s`` portion
@@ -1187,8 +1184,8 @@ order by the ``last_name`` attribute when you use the proxy. This is easy::
 Now normal ``Person`` queries will be unordered
 and ``OrderedPerson`` queries will be ordered by ``last_name``.
 
-QuerySets still return the model that was requested
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``QuerySet``\s still return the model that was requested
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 There is no way to have Django return, say, a ``MyPerson`` object whenever you
 query for ``Person`` objects. A queryset for ``Person`` objects will return

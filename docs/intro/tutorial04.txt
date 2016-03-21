@@ -241,6 +241,7 @@ First, open the ``polls/urls.py`` URLconf and change it like so:
 
     from . import views
 
+    app_name = 'polls'
     urlpatterns = [
         url(r'^$', views.IndexView.as_view(), name='index'),
         url(r'^(?P<pk>[0-9]+)/$', views.DetailView.as_view(), name='detail'),
@@ -289,7 +290,7 @@ views and use Django's generic views instead. To do so, open the
 
 
     def vote(request, question_id):
-        ... # same as above
+        ... # same as above, no changes needed.
 
 We're using two generic views here:
 :class:`~django.views.generic.list.ListView` and

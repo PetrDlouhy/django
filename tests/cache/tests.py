@@ -30,7 +30,7 @@ from django.template import engines
 from django.template.context_processors import csrf
 from django.template.response import TemplateResponse
 from django.test import (
-    RequestFactory, SimpleTestCase, TestCase, TransactionTestCase,
+    RequestFactory, SimpleTestCase, TestCase, TransactionTestCase, mock,
     override_settings,
 )
 from django.test.signals import setting_changed
@@ -196,6 +196,15 @@ class DummyCacheTests(SimpleTestCase):
         cache.set('answer', 42)
         self.assertRaises(ValueError, cache.decr_version, 'answer')
         self.assertRaises(ValueError, cache.decr_version, 'does_not_exist')
+
+    def test_get_or_set(self):
+        self.assertEqual(cache.get_or_set('mykey', 'default'), 'default')
+
+    def test_get_or_set_callable(self):
+        def my_callable():
+            return 'default'
+
+        self.assertEqual(cache.get_or_set('mykey', my_callable), 'default')
 
 
 def custom_key_func(key, key_prefix, version):
@@ -906,6 +915,13 @@ class BaseCacheTests(object):
         self.assertEqual(cache.get_or_set('brian', 1979, version=2), 1979)
         self.assertIsNone(cache.get('brian', version=3))
 
+    def test_get_or_set_racing(self):
+        with mock.patch('%s.%s' % (settings.CACHES['default']['BACKEND'], 'add')) as cache_add:
+            # Simulate cache.add() failing to add a value. In that case, the
+            # default value should be returned.
+            cache_add.return_value = False
+            self.assertEqual(cache.get_or_set('key', 'default'), 'default')
+
 
 @override_settings(CACHES=caches_setting_for_tests(
     BACKEND='django.core.cache.backends.db.DatabaseCache',
@@ -1320,7 +1336,7 @@ class DefaultNonExpiringCacheKeyTests(SimpleTestCase):
         self.assertIsNotNone(cache._expire_info[cache_key])
 
     @override_settings(CACHES=NEVER_EXPIRING_CACHES_SETTINGS)
-    def text_caches_set_with_timeout_as_none_set_non_expiring_key(self):
+    def test_caches_set_with_timeout_as_none_set_non_expiring_key(self):
         """Memory caches that have the TIMEOUT parameter set to `None` will set
         a non expiring key by default.
         """

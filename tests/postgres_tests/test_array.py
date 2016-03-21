@@ -347,7 +347,9 @@ class TestChecks(PostgreSQLTestCase):
         model = MyModel()
         errors = model.check()
         self.assertEqual(len(errors), 1)
+        # The inner CharField is missing a max_length.
         self.assertEqual(errors[0].id, 'postgres.E001')
+        self.assertIn('max_length', errors[0].msg)
 
     def test_invalid_base_fields(self):
         test_apps = Apps(['postgres_tests'])
@@ -362,6 +364,25 @@ class TestChecks(PostgreSQLTestCase):
         errors = model.check()
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0].id, 'postgres.E002')
+
+    def test_nested_field_checks(self):
+        """
+        Nested ArrayFields are permitted.
+        """
+        test_apps = Apps(['postgres_tests'])
+
+        class MyModel(PostgreSQLModel):
+            field = ArrayField(ArrayField(models.CharField()))
+
+            class Meta:
+                apps = test_apps
+
+        model = MyModel()
+        errors = model.check()
+        self.assertEqual(len(errors), 1)
+        # The inner CharField is missing a max_length.
+        self.assertEqual(errors[0].id, 'postgres.E001')
+        self.assertIn('max_length', errors[0].msg)
 
 
 @unittest.skipUnless(connection.vendor == 'postgresql', "PostgreSQL specific tests")
@@ -441,17 +462,17 @@ class TestMigrations(TransactionTestCase):
 
 class TestSerialization(PostgreSQLTestCase):
     test_data = (
-        '[{"fields": {"field": "[\\"1\\", \\"2\\"]"}, "model": "postgres_tests.integerarraymodel", "pk": null}]'
+        '[{"fields": {"field": "[\\"1\\", \\"2\\", null]"}, "model": "postgres_tests.integerarraymodel", "pk": null}]'
     )
 
     def test_dumping(self):
-        instance = IntegerArrayModel(field=[1, 2])
+        instance = IntegerArrayModel(field=[1, 2, None])
         data = serializers.serialize('json', [instance])
         self.assertEqual(json.loads(data), json.loads(self.test_data))
 
     def test_loading(self):
         instance = list(serializers.deserialize('json', self.test_data))[0].object
-        self.assertEqual(instance.field, [1, 2])
+        self.assertEqual(instance.field, [1, 2, None])
 
 
 class TestValidation(PostgreSQLTestCase):

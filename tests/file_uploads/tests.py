@@ -112,7 +112,7 @@ class FileUploadTests(TestCase):
         tdir = sys_tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tdir, True)
 
-        # This file contains chinese symbols and an accented char in the name.
+        # This file contains Chinese symbols and an accented char in the name.
         with open(os.path.join(tdir, UNICODE_FILENAME), 'w+b') as file1:
             file1.write(b'b' * (2 ** 10))
             file1.seek(0)
@@ -178,6 +178,41 @@ class FileUploadTests(TestCase):
         }
         response = self.client.request(**r)
         self.assertEqual(response.status_code, 200)
+
+    def test_blank_filenames(self):
+        """
+        Receiving file upload when filename is blank (before and after
+        sanitization) should be okay.
+        """
+        # The second value is normalized to an empty name by
+        # MultiPartParser.IE_sanitize()
+        filenames = ['', 'C:\\Windows\\']
+
+        payload = client.FakePayload()
+        for i, name in enumerate(filenames):
+            payload.write('\r\n'.join([
+                '--' + client.BOUNDARY,
+                'Content-Disposition: form-data; name="file%s"; filename="%s"' % (i, name),
+                'Content-Type: application/octet-stream',
+                '',
+                'You got pwnd.\r\n'
+            ]))
+        payload.write('\r\n--' + client.BOUNDARY + '--\r\n')
+
+        r = {
+            'CONTENT_LENGTH': len(payload),
+            'CONTENT_TYPE': client.MULTIPART_CONTENT,
+            'PATH_INFO': '/echo/',
+            'REQUEST_METHOD': 'POST',
+            'wsgi.input': payload,
+        }
+        response = self.client.request(**r)
+        self.assertEqual(response.status_code, 200)
+
+        # Empty filenames should be ignored
+        received = json.loads(response.content.decode('utf-8'))
+        for i, name in enumerate(filenames):
+            self.assertIsNone(received.get('file%s' % i))
 
     def test_dangerous_file_names(self):
         """Uploaded file names should be sanitized before ever reaching the view."""
