@@ -54,30 +54,18 @@ class CommonMiddleware(object):
 
         # Check for a redirect based on settings.PREPEND_WWW
         host = request.get_host()
-        if settings.PREPEND_WWW and host and not host.startswith('www.'):
-            redirect = True
-            host = 'www.' + host
-            redirect_url = ('%s://%s' % (request.scheme, host))
-        else:
-            redirect = False
-            redirect_url = ''
+        must_prepend = settings.PREPEND_WWW and host and not host.startswith('www.')
+        redirect_url = ('%s://www.%s' % (request.scheme, host)) if must_prepend else ''
 
-        # Check if we also need to append a slash so we can do it all
-        # with a single redirect.
+        # Check if a slash should be appended
         if self.should_redirect_with_slash(request):
             path = self.get_full_path_with_slash(request)
         else:
             path = request.get_full_path()
 
-        # If the path was modified, return a redirect
-        if path != request.get_full_path():
-            redirect = True
-
-        # Add path to redirect URL regardless of whether it was modified
-        redirect_url += (path)
-
         # Return a redirect if necessary
-        if redirect:
+        if redirect_url or path != request.get_full_path():
+            redirect_url += path
             return self.response_redirect_class(redirect_url)
 
     def should_redirect_with_slash(self, request):
