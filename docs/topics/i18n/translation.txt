@@ -468,8 +468,10 @@ If the string contains exactly one unnamed placeholder, you can interpolate
 directly with the ``number`` argument::
 
     class MyForm(forms.Form):
-        error_message = ungettext_lazy("You provided %d argument",
-            "You provided %d arguments")
+        error_message = ungettext_lazy(
+            "You provided %d argument",
+            "You provided %d arguments",
+        )
 
         def clean(self):
             # ...
@@ -523,17 +525,23 @@ Localized names of languages
 The ``get_language_info()`` function provides detailed information about
 languages::
 
-    >>> from django.utils.translation import get_language_info
+    >>> from django.utils.translation import activate, get_language_info
+    >>> activate('fr')
     >>> li = get_language_info('de')
-    >>> print(li['name'], li['name_local'], li['bidi'])
-    German Deutsch False
+    >>> print(li['name'], li['name_local'], li['name_translated'], li['bidi'])
+    German Deutsch Allemand False
 
-The ``name`` and ``name_local`` attributes of the dictionary contain the name of
-the language in English and in the language itself, respectively.  The ``bidi``
+The ``name``, ``name_local``, and ``name_translated`` attributes of the
+dictionary contain the name of the language in English, in the language
+itself, and in your current active language respectively.  The ``bidi``
 attribute is True only for bi-directional languages.
 
 The source of the language information is the ``django.conf.locale`` module.
 Similar access to this information is available for template code. See below.
+
+.. versionchanged:: 1.9
+
+    The ``'name_translated'`` attribute was added.
 
 .. _specifying-translation-strings-in-template-code:
 
@@ -1302,7 +1310,7 @@ You can even pre-generate the JavaScript catalog as part of your deployment
 procedure and serve it as a static file. This radical technique is implemented
 in django-statici18n_.
 
-.. _django-statici18n: http://django-statici18n.readthedocs.org/en/latest/
+.. _django-statici18n: https://django-statici18n.readthedocs.io/en/latest/
 
 .. _url-internationalization:
 
@@ -1339,7 +1347,7 @@ Language prefix in URL patterns
     :func:`django.conf.urls.url` instances instead.
 
 This function can be used in your root URLconf and Django will automatically
-prepend the current active language code to all url patterns defined within
+prepend the current active language code to all URL patterns defined within
 :func:`~django.conf.urls.i18n.i18n_patterns`. Example URL patterns::
 
     from django.conf.urls import include, url
@@ -1567,9 +1575,9 @@ multiple times::
     in general, and doesn't depend on ``gettext``. For more information, read
     its documentation about `working with message catalogs`_.
 
-    .. _Message extracting: http://babel.pocoo.org/docs/messages/#message-extraction
+    .. _Message extracting: http://babel.pocoo.org/en/latest/messages.html#message-extraction
     .. _Babel: http://babel.pocoo.org/
-    .. _working with message catalogs: http://babel.pocoo.org/docs/messages/
+    .. _working with message catalogs: http://babel.pocoo.org/en/latest/messages.html
 
 .. admonition:: No gettext?
 
@@ -1726,8 +1734,11 @@ If you need more flexibility, you could also add a new argument to your custom
 
         def add_arguments(self, parser):
             super(Command, self).add_arguments(parser)
-            parser.add_argument('--extra-keyword', dest='xgettext_keywords',
-                                action='append')
+            parser.add_argument(
+                '--extra-keyword',
+                dest='xgettext_keywords',
+                action='append',
+            )
 
         def handle(self, *args, **options):
             xgettext_keywords = options.pop('xgettext_keywords')

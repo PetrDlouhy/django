@@ -242,6 +242,13 @@ class BasicExtractorTests(ExtractorTests):
         self.assertIn("UnicodeDecodeError: skipped file not_utf8.txt in .",
                       force_text(out.getvalue()))
 
+    def test_unicode_file_name(self):
+        os.chdir(self.test_dir)
+        unicode_path = os.path.join(self.test_dir, 'vidéo.txt')
+        open(unicode_path, 'a').close()
+        self.addCleanup(self.rmfile, unicode_path)
+        management.call_command('makemessages', locale=[LOCALE], verbosity=0)
+
     def test_extraction_warning(self):
         """test xgettext warning about multiple bare interpolation placeholders"""
         os.chdir(self.test_dir)
@@ -540,7 +547,9 @@ class SymlinkExtractorTests(ExtractorTests):
             with open(self.PO_FILE, 'r') as fp:
                 po_contents = force_text(fp.read())
                 self.assertMsgId('This literal should be included.', po_contents)
-                self.assertIn('templates_symlinked/test.html', po_contents)
+            self.assertLocationCommentPresent(self.PO_FILE, None, 'templates_symlinked', 'test.html')
+        else:
+            raise SkipTest("os.symlink() not available on this OS + Python version combination.")
 
 
 class CopyPluralFormsExtractorTests(ExtractorTests):
@@ -635,8 +644,19 @@ class LocationCommentsTests(ExtractorTests):
         # #16903 -- Standard comment with source file relative path should be present
         self.assertLocationCommentPresent(self.PO_FILE, 'Translatable literal #6b', 'templates', 'test.html')
 
-        # #21208 -- Leaky paths in comments on Windows e.g. #: path\to\file.html.py:123
-        self.assertLocationCommentNotPresent(self.PO_FILE, None, 'templates', 'test.html.py')
+    def test_location_comments_for_templatized_files(self):
+        """
+        Ensure no leaky paths in comments, e.g. #: path\to\file.html.py:123
+        Refs #21209/#26341.
+        """
+        os.chdir(self.test_dir)
+        management.call_command('makemessages', locale=[LOCALE], verbosity=0)
+        self.assertTrue(os.path.exists(self.PO_FILE))
+        with open(self.PO_FILE, 'r') as fp:
+            po_contents = force_text(fp.read())
+        self.assertMsgId('#: templates/test.html.py', po_contents)
+        self.assertLocationCommentNotPresent(self.PO_FILE, None, '.html.py')
+        self.assertLocationCommentPresent(self.PO_FILE, 5, 'templates', 'test.html')
 
 
 class KeepPotFileExtractorTests(ExtractorTests):
